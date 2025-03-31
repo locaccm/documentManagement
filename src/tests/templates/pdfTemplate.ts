@@ -5,7 +5,6 @@ import {generateRentReceiptTemplate} from "../../templates/pdfTemplate";
 
 describe('generateRentReceiptTemplate', () => {
   const sampleData: RentReceipt = {
-    rentalType: "1",
     month: 'January',
     landlordName: 'John Doe',
     landlordAddress: '123 Main St, City, Country',
@@ -21,7 +20,6 @@ describe('generateRentReceiptTemplate', () => {
     paymentDate: '2023-01-01',
     rentalPeriodStart: '2023-01-01',
     rentalPeriodEnd: '2023-01-31',
-    energyContribution: 50
   };
 
   it('generates a PDF buffer with correct data', async () => {

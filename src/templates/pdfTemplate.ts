@@ -74,11 +74,6 @@ export const generateRentReceiptTemplate = (data: RentReceipt): Promise<Buffer> 
         doc.moveDown(0.5);
         doc.font('Helvetica-Bold').text('Provision pour charges :', { continued: true }).font('Helvetica').text(` ${data.chargesAmount} euros`);
         doc.moveDown(0.5);
-        // Optional display of the energy savings contribution
-        if (data.energyContribution !== undefined) {
-            doc.fontSize(12).text('(le cas échéant, contribution aux économies d’énergies) :', { continued: true }).font('Helvetica').text(` ${data.energyContribution} euros`);
-            doc.moveDown(0.5);
-        }
         doc.font('Helvetica-Bold').text('Total :', { continued: true }).font('Helvetica').text(` ${data.totalAmount} euros`);
         doc.moveDown(1);
 
