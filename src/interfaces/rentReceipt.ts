@@ -1,6 +1,4 @@
 export interface RentReceipt {
-    receiptNumber?: string;
-    rentalType: string;
     month: string;
     landlordName: string;
     landlordAddress: string;
@@ -14,7 +12,6 @@ export interface RentReceipt {
     rentAmount: number;
     rentAmountText: string;
     chargesAmount: number;
-    energyContribution?: number;
     totalAmount: number;
     paymentDate: string;
 }
