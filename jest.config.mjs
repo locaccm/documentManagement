@@ -5,4 +5,5 @@ export default {
   transform: {
     "^.+\\.tsx?$": ["ts-jest", {}],
   },
+  testMatch: ["**/src/tests/**/*.ts"],
 };
