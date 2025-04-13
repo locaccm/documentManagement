@@ -1,10 +1,10 @@
 import fs from 'fs';
 import path from 'path';
-import {RentReceipt} from "../../interfaces/rentReceipt";
+import {RentReceiptInterface} from "../../interfaces/rentReceiptInterface";
 import {generateRentReceiptTemplate} from "../../templates/pdfTemplate";
 
 describe('generateRentReceiptTemplate', () => {
-  const sampleData: RentReceipt = {
+  const sampleData: RentReceiptInterface = {
     month: 'January',
     landlordName: 'John Doe',
     landlordAddress: '123 Main St, City, Country',

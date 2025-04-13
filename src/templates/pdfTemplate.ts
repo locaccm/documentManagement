@@ -1,8 +1,8 @@
 import PDFDocument from 'pdfkit';
-import { RentReceipt } from "../interfaces/rentReceipt";
+import { RentReceiptInterface } from "../interfaces/rentReceiptInterface";
 import path from 'path';
 
-export const generateRentReceiptTemplate = (data: RentReceipt): Promise<Buffer> => {
+export const generateRentReceiptTemplate = (data: RentReceiptInterface): Promise<Buffer> => {
     return new Promise((resolve) => {
         // Create the document with a margin of 50
         const doc = new PDFDocument({ margin: 50 });

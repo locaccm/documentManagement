@@ -1,0 +1,36 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "./node_modules/@prisma/client"
+}
+
+model User {
+  id    Int    @id @default(autoincrement())
+  email String @unique
+}
+
+model RentReceipt {
+  id                Int     @id @default(autoincrement())
+  rentalType        String
+  month             String
+  landlordName      String
+  landlordAddress   String
+  tenantName        String
+  tenantAddress     String
+  signedAt          String
+  receiptDate       String
+  rentalAddress     String
+  rentalPeriodStart String
+  rentalPeriodEnd   String
+  rentAmount        Float
+  rentAmountText    String
+  chargesAmount     Float
+  energyContribution Float?
+  totalAmount       Float
+  paymentDate       String
+  pdfUrl            String?
+}
