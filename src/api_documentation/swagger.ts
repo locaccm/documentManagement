@@ -7,7 +7,7 @@ export const setupSwagger = (app: Express): void => {
         definition: {
             openapi: '3.0.0',
             info: {
-                title: 'API de génération de quittance de loyer',
+                title: 'API DocumentManagement',
                 version: '1.0.0',
                 description: 'API REST pour générer des quittances de loyer en PDF.'
             },
@@ -59,6 +59,21 @@ export const setupSwagger = (app: Express): void => {
                             'totalAmount',
                             'paymentDate'
                         ]
+                    },
+                    DocumentInfo: {
+                        type: 'object',
+                        properties: {
+                            name: { type: 'string', example: 'quittance-abc.pdf' },
+                            url: {
+                                type: 'string',
+                                example: 'https://storage.googleapis.com/mon-bucket/42/document/quittance-abc.pdf'
+                            },
+                            created: {
+                                type: 'string',
+                                format: 'date-time',
+                                example: '2024-11-04T12:34:56Z'
+                            }
+                        }
                     }
                 },
                 securitySchemes: {

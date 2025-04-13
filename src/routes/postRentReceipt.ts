@@ -7,15 +7,16 @@ import { getUserById } from '../services/userService';
 
 const router = Router();
 const storage = new Storage();
+const bucketName = process.env.GCS_BUCKET_NAME;
 
 /**
  * @swagger
  * /api/rent-receipt:
  *   post:
- *     summary: Créer une quittance de loyer en PDF et l'enregistrer dans GCP
- *     description: Génère une quittance de loyer en PDF à partir des données fournies,
- *                  la stocke dans un bucket Google Cloud Storage (provisionné via Terraform)
- *                  dans le sous-dossier de l'utilisateur connecté et renvoie l'URL du PDF.
+ *     summary: Create a rent receipt PDF and save it to GCP
+ *     description: Generates a rent receipt PDF from a provided leaseId, retrieves data from the database, and saves it in a user subfolder in the GCP bucket.
+ *     tags:
+ *       - Documents
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -23,10 +24,14 @@ const storage = new Storage();
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/RentReceipt'
+ *             type: object
+ *             properties:
+ *               leaseId:
+ *                 type: integer
+ *                 example: 1
  *     responses:
  *       200:
- *         description: Quittance générée et enregistrée.
+ *         description: Rent receipt successfully generated and saved.
  *         content:
  *           application/json:
  *             schema:
@@ -37,17 +42,15 @@ const storage = new Storage();
  *                 pdfUrl:
  *                   type: string
  *       400:
- *         description: Données invalides.
+ *         description: Invalid data.
  *       401:
- *         description: Non autorisé.
+ *         description: Unauthorized.
  *       500:
- *         description: Erreur interne du serveur.
+ *         description: Internal server error.
  */
 router.post('/rent-receipt', authenticateJWT, async (req: AuthRequest, res: Response): Promise<void> => {
-    const bucketName = process.env.GCS_BUCKET_NAME;
-
     if (!bucketName) {
-        res.status(500).json({ message: "La variable d'environnement GCS_BUCKET_NAME n'est pas définie" });
+        res.status(500).json({ message: "The environment variable GCS_BUCKET_NAME is not defined" });
         return;
     }
 
@@ -55,13 +58,13 @@ router.post('/rent-receipt', authenticateJWT, async (req: AuthRequest, res: Resp
         const rentReceiptData = req.body;
 
         if (!req.user) {
-            res.status(401).json({ message: "Non autorisé" });
+            res.status(401).json({ message: "Unauthorized" });
             return;
         }
 
-        const user = await getUserById(req.user.userId);
-        if (!user) {
-            res.status(404).json({ message: 'Utilisateur non trouvé.' });
+        const { leaseId } = req.body;
+        if (!leaseId || typeof leaseId !== 'number') {
+            res.status(400).json({ message: "leaseId is required and must be a number." });
             return;
         }
 
@@ -76,12 +79,12 @@ router.post('/rent-receipt', authenticateJWT, async (req: AuthRequest, res: Resp
         const pdfUrl = `https://storage.googleapis.com/${bucketName}/${filePath}`;
 
         res.status(200).json({
-            message: "Quittance générée et enregistrée avec succès",
+            message: "Rent receipt successfully generated and saved",
             pdfUrl,
         });
     } catch (error) {
         console.error(error);
-        res.status(500).json({ message: "Erreur interne du serveur" });
+        res.status(500).json({ message: "Internal server error" });
     }
 });
 
