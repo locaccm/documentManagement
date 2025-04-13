@@ -10,6 +10,9 @@ const storage = new Storage();
  * /api/documents:
  *   get:
  *     summary: Retrieves the list of user's PDF documents
+ *     description: Lists all PDF files of the logged-in user, present in his or her GCP subfolder.
+ *     tags:
+ *       - Documents
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -23,14 +26,7 @@ const storage = new Storage();
  *                 documents:
  *                   type: array
  *                   items:
- *                     type: object
- *                     properties:
- *                       name:
- *                         type: string
- *                       url:
- *                         type: string
- *                       created:
- *                         type: string
+ *                     $ref: '#/components/schemas/DocumentInfo'
  *       401:
  *         description: Unauthorized
  *       500:
