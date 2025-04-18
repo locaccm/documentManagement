@@ -3,7 +3,7 @@ import { Storage } from '@google-cloud/storage';
 import { v4 as uuidv4 } from 'uuid';
 import { generateRentReceiptTemplate } from '../templates/pdfTemplate';
 import { authenticateJWT, AuthRequest } from '../middleware/auth';
-import { getUserById } from '../services/userService';
+import { getRentReceiptDataFromLease } from '../services/rentReceiptService';
 
 const router = Router();
 const storage = new Storage();
@@ -55,8 +55,6 @@ router.post('/rent-receipt', authenticateJWT, async (req: AuthRequest, res: Resp
     }
 
     try {
-        const rentReceiptData = req.body;
-
         if (!req.user) {
             res.status(401).json({ message: "Unauthorized" });
             return;
@@ -68,7 +66,8 @@ router.post('/rent-receipt', authenticateJWT, async (req: AuthRequest, res: Resp
             return;
         }
 
-        const pdfBuffer = await generateRentReceiptTemplate(rentReceiptData);
+        const receiptData = await getRentReceiptDataFromLease(leaseId);
+        const pdfBuffer = await generateRentReceiptTemplate(receiptData);
 
         const fileName = `quittance-${uuidv4()}.pdf`;
         const filePath = `${req.user.userId}/document/${fileName}`;

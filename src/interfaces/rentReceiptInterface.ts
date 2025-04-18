@@ -4,14 +4,14 @@ export interface RentReceiptInterface {
     landlordAddress: string;
     tenantName: string;
     tenantAddress: string;
-    signedAt: Date;
-    receiptDate: Date;
+    signedAt: string;
+    receiptDate: string;
     rentalAddress: string;
-    rentalPeriodStart: Date;
-    rentalPeriodEnd: Date;
+    rentalPeriodStart: string;
+    rentalPeriodEnd: string;
     rentAmount: number;
     rentAmountText: string;
     chargesAmount: number;
     totalAmount: number;
-    paymentDate: Date;
+    paymentDate: string;
 }
