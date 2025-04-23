@@ -13,17 +13,25 @@ export const getRentReceiptDataFromLease = async (leaseId: number) => {
         }
     });
 
-    if (!lease || !lease.user || !lease.accommodation || !lease.accommodation.owner) {
-        throw new Error("Missing data to generate the rent receipt");
+    if (!lease) {
+        throw new Error("Lease not found");
+    }
+
+    if (!lease.user) {
+        throw new Error("Missing tenant information");
+    }
+
+    if (!lease.accommodation) {
+        throw new Error("Missing accommodation");
+    }
+
+    if (!lease.accommodation.owner) {
+        throw new Error("Missing landlord information");
     }
 
     const tenant = lease.user;
     const property = lease.accommodation;
     const landlord = lease.accommodation.owner;
-    if (!landlord) {
-        throw new Error("Missing landlord information");
-    }
-
 
     const rent = parseFloat(lease.LEAN_RENT?.toString() ?? '0');
     const charges = parseFloat(lease.LEAN_CHARGES?.toString() ?? '0');
