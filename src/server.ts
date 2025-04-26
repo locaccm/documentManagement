@@ -14,7 +14,5 @@ app.use("/api", deleteDocument);
 app.use("/api", getDocumentRouter);
 app.use("/api", rentReceiptRouter);
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Serveur démarré sur http://localhost:${PORT}`); // TODO DELETE THIS LINE at the end of dev
-});
+const PORT = process.env.PORT ?? 3000;
+app.listen(PORT, () => {});
