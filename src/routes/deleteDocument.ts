@@ -1,6 +1,6 @@
-import { Router, Response } from 'express';
-import { Storage } from '@google-cloud/storage';
-import { authenticateJWT, AuthRequest } from '../middleware/auth';
+import { Router, Response } from "express";
+import { Storage } from "@google-cloud/storage";
+import { authenticateJWT, AuthRequest } from "../middleware/auth";
 
 const router = Router();
 const storage = new Storage();
@@ -35,39 +35,49 @@ const bucketName = process.env.GCS_BUCKET_NAME;
  *       500:
  *         description: Erreur lors de la suppression du fichier
  */
-router.delete('/documents/:filename', authenticateJWT, async (req: AuthRequest, res: Response): Promise<void> => {
+router.delete(
+  "/documents/:filename",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response): Promise<void> => {
     if (!bucketName) {
-        throw new Error("La variable d'environnement GCS_BUCKET_NAME est manquante");
+      throw new Error(
+        "La variable d'environnement GCS_BUCKET_NAME est manquante",
+      );
     }
 
     try {
-        const userId = req.user?.userId;
-        const { filename } = req.params;
+      const userId = req.user?.userId;
+      const { filename } = req.params;
 
-        if (!userId) {
-            res.status(401).json({ message: 'Non autorisé' });
-            return;
-        }
+      if (!userId) {
+        res.status(401).json({ message: "Non autorisé" });
+        return;
+      }
 
-        if (!filename) {
-            res.status(400).json({ message: 'Le nom du fichier est requis' });
-            return;
-        }
+      if (!filename) {
+        res.status(400).json({ message: "Le nom du fichier est requis" });
+        return;
+      }
 
-        const filePath = `${userId}/document/${filename}`;
-        const file = storage.bucket(bucketName!).file(filePath);
+      const filePath = `${userId}/document/${filename}`;
+      const file = storage.bucket(bucketName!).file(filePath);
 
-        const [exists] = await file.exists();
-        if (!exists) {
-            res.status(404).json({ message: 'Fichier non trouvé' });
-            return;
-        }
+      const [exists] = await file.exists();
+      if (!exists) {
+        res.status(404).json({ message: "Fichier non trouvé" });
+        return;
+      }
 
-        await file.delete();
-        res.status(200).json({ message: `Le fichier ${filename} a été supprimé.` });
+      await file.delete();
+      res
+        .status(200)
+        .json({ message: `Le fichier ${filename} a été supprimé.` });
     } catch (error) {
-        res.status(500).json({ message: 'Erreur lors de la suppression du fichier' });
+      res
+        .status(500)
+        .json({ message: "Erreur lors de la suppression du fichier" });
     }
-});
+  },
+);
 
 export default router;
