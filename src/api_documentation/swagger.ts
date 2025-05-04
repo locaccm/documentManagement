@@ -17,6 +17,13 @@ export const setupSwagger = (app: Express): void => {
           description: "Serveur de développement",
         },
       ],
+      tags: [
+        {
+          name: "Documents",
+          description:
+            "Opérations liées aux documents PDF (quittances, suppressions, liste)",
+        },
+      ],
       components: {
         schemas: {
           RentReceipt: {

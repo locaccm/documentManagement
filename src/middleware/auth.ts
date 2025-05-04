@@ -13,7 +13,6 @@ export const authenticateJWT = (
   const authHeader = req.headers?.authorization;
   if (authHeader && authHeader.startsWith("Bearer ")) {
     const token = authHeader.split(" ")[1];
-    // TODO don't forget to add the JWT secret signature key to the .env / see if you use this method
     jwt.verify(token, process.env.JWT_SECRET as string, (err, decoded) => {
       if (err) {
         return res.sendStatus(403);
