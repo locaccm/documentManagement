@@ -10,8 +10,8 @@ const bucketName = process.env.GCS_BUCKET_NAME;
  * @swagger
  * /api/documents/{filename}:
  *   delete:
- *     summary: Supprimer un document PDF de l'utilisateur
- *     description: Supprime un document PDF spécifique depuis le sous-dossier de l'utilisateur connecté dans GCP.
+ *     summary: Delete a user's PDF document
+ *     description: Deletes a specific PDF document from the logged-in user's GCP subfolder.
  *     tags:
  *       - Documents
  *     security:
@@ -22,27 +22,25 @@ const bucketName = process.env.GCS_BUCKET_NAME;
  *         required: true
  *         schema:
  *           type: string
- *         description: Nom du fichier à supprimer
+ *         description: Name of the file to delete
  *     responses:
  *       200:
- *         description: Fichier supprimé avec succès
+ *         description: File successfully deleted
  *       400:
- *         description: Nom de fichier invalide
+ *         description: Invalid file name
  *       401:
- *         description: Non autorisé
+ *         description: Unauthorized
  *       404:
- *         description: Fichier non trouvé
+ *         description: File not found
  *       500:
- *         description: Erreur lors de la suppression du fichier
+ *         description: Error during file deletion
  */
 router.delete(
   "/documents/:filename",
   authenticateJWT,
   async (req: AuthRequest, res: Response): Promise<void> => {
     if (!bucketName) {
-      throw new Error(
-        "La variable d'environnement GCS_BUCKET_NAME est manquante",
-      );
+      throw new Error("The environment variable GCS_BUCKET_NAME is missing");
     }
 
     try {
@@ -50,32 +48,31 @@ router.delete(
       const { filename } = req.params;
 
       if (!userId) {
-        res.status(401).json({ message: "Non autorisé" });
+        res.status(401).json({ message: "Unauthorized" });
         return;
       }
 
-      if (!filename) {
-        res.status(400).json({ message: "Le nom du fichier est requis" });
+      if (!filename || filename.trim() === "") {
+        res.status(404).json({ message: "The file name is required" });
         return;
       }
 
       const filePath = `${userId}/document/${filename}`;
-      const file = storage.bucket(bucketName!).file(filePath);
+      const file = storage.bucket(bucketName).file(filePath);
 
       const [exists] = await file.exists();
+
       if (!exists) {
-        res.status(404).json({ message: "Fichier non trouvé" });
+        res.status(404).json({ message: "File not found" });
         return;
       }
 
       await file.delete();
       res
         .status(200)
-        .json({ message: `Le fichier ${filename} a été supprimé.` });
+        .json({ message: `The file ${filename} has been deleted.` });
     } catch (error) {
-      res
-        .status(500)
-        .json({ message: "Erreur lors de la suppression du fichier" });
+      res.status(500).json({ message: "Error during file deletion" });
     }
   },
 );
