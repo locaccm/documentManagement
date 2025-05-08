@@ -10,7 +10,10 @@ COPY package*.json ./
 
 RUN npm install
 
+COPY .gitmodules ./
 COPY . .
+
+RUN git submodule update --init --recursive
 
 RUN npm run migrate
 RUN npm run build
