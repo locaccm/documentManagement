@@ -5,6 +5,14 @@
     "rootDir": "./src",
     "outDir": "./dist",
     "strict": true,
+    "skipLibCheck": true,
     "esModuleInterop": true
-  }
+  },
+  "include": ["src/**/*"],
+  "exclude": [
+    "node_modules",
+    "src/tests",
+    "prisma",
+    "**/*.spec.ts"
+  ]
 }
