@@ -1,7 +1,11 @@
 {
   "scripts": {
     "dev": "nodemon --watch src --exec ts-node src/server.ts",
-    "test": "jest --coverage --coverageReporters=lcov"
+    "test": "jest --coverage --coverageReporters=lcov",
+    "migrate": "npx prisma migrate deploy --schema=prisma/prisma/schema.prisma",
+    "generate": "npx prisma generate --schema=prisma/prisma/schema.prisma",
+    "build": "tsc",
+    "start": "npm run migrate && node dist/server.js"
   },
   "devDependencies": {
     "@eslint/js": "^9.22.0",
