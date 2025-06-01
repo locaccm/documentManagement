@@ -11,6 +11,9 @@ module "cloud_run_document_management" {
   env_variables = {
     NODE_ENV = "production"
   }
+  secrets = {
+    DATABASE_URL = "DATABASE_URL_PROD"
+  }
 }
 
 module "cloud_run_auth_invokers" {
