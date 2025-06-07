@@ -80,7 +80,7 @@ jobs:
         run: gcloud auth configure-docker europe-west1-docker.pkg.dev
 
       - name: Build Docker image
-        run: docker build --build-arg DATABASE_URL=${{ secrets.DATABASE_URL_PROD }} -t document_management:latest .
+        run: docker build --build-arg DATABASE_URL=${{ secrets.DATABASE_URL_PRE_PROD }} -t document_management:latest .
 
       - name: Tag & Push to Artifact Registry
         run: |
