@@ -1,26 +1,31 @@
+// src/tests/middleware/auth_test.ts
 import { Response, NextFunction } from "express";
-import jwt from "jsonwebtoken";
+import axios from "axios";
 import { authenticateJWT, AuthRequest } from "../../middleware/auth";
 
-jest.mock("jsonwebtoken");
+jest.mock("axios");
+const mockedAxios = axios as jest.Mocked<typeof axios>;
 
 describe("authenticateJWT middleware", () => {
   let mockRequest: Partial<AuthRequest>;
   let mockResponse: Partial<Response>;
   let mockNext: NextFunction;
+  let consoleErrorSpy: jest.SpyInstance;
 
   beforeEach(() => {
-    mockRequest = {
-      headers: {},
-    };
-    mockResponse = {
-      sendStatus: jest.fn(),
-    };
+    mockRequest = { headers: {} };
+    mockResponse = { sendStatus: jest.fn() };
     mockNext = jest.fn();
+    consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
   });
 
-  it("returns 401 when no authorization header is present", () => {
-    authenticateJWT(
+  afterEach(() => {
+    jest.resetAllMocks();
+    consoleErrorSpy.mockRestore();
+  });
+
+  it("returns 401 when no authorization header is present", async () => {
+    await authenticateJWT(
       mockRequest as AuthRequest,
       mockResponse as Response,
       mockNext,
@@ -30,13 +35,24 @@ describe("authenticateJWT middleware", () => {
     expect(mockNext).not.toHaveBeenCalled();
   });
 
-  it("returns 403 when token verification fails", () => {
-    mockRequest.headers = { authorization: "Bearer invalidToken" };
-    (jwt.verify as jest.Mock).mockImplementation((_, __, callback) => {
-      callback(new Error("Invalid token"), null);
-    });
+  it("returns 401 when authorization header is malformed", async () => {
+    mockRequest.headers = { authorization: "MalformedHeader" };
 
-    authenticateJWT(
+    await authenticateJWT(
+      mockRequest as AuthRequest,
+      mockResponse as Response,
+      mockNext,
+    );
+
+    expect(mockResponse.sendStatus).toHaveBeenCalledWith(401);
+    expect(mockNext).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 when axios.post resolves with status 403", async () => {
+    mockRequest.headers = { authorization: "Bearer invalidToken" };
+    mockedAxios.post.mockResolvedValueOnce({ status: 403 } as any);
+
+    await authenticateJWT(
       mockRequest as AuthRequest,
       mockResponse as Response,
       mockNext,
@@ -46,32 +62,38 @@ describe("authenticateJWT middleware", () => {
     expect(mockNext).not.toHaveBeenCalled();
   });
 
-  it("adds user to request and calls next when token is valid", () => {
-    const decodedToken = { userId: 1, email: "test@example.com" };
+  it("adds user to request and calls next when axios.post returns 200", async () => {
+    const userData = { userId: 1, email: "test@example.com", status: "active" };
     mockRequest.headers = { authorization: "Bearer validToken" };
-    (jwt.verify as jest.Mock).mockImplementation((_, __, callback) => {
-      callback(null, decodedToken);
-    });
+    mockedAxios.post.mockResolvedValueOnce({
+      status: 200,
+      data: userData,
+    } as any);
 
-    authenticateJWT(
+    await authenticateJWT(
       mockRequest as AuthRequest,
       mockResponse as Response,
       mockNext,
     );
 
-    expect(mockRequest.user).toEqual(decodedToken);
+    expect(mockRequest.user).toEqual(userData);
     expect(mockNext).toHaveBeenCalled();
   });
 
-  it("returns 401 when authorization header is malformed", () => {
-    mockRequest.headers = { authorization: "MalformedHeader" };
+  it("returns 401 when axios.post throws an error", async () => {
+    mockRequest.headers = { authorization: "Bearer someToken" };
+    mockedAxios.post.mockRejectedValueOnce(new Error("Network error"));
 
-    authenticateJWT(
+    await authenticateJWT(
       mockRequest as AuthRequest,
       mockResponse as Response,
       mockNext,
     );
 
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      "Erreur auth:",
+      "Network error",
+    );
     expect(mockResponse.sendStatus).toHaveBeenCalledWith(401);
     expect(mockNext).not.toHaveBeenCalled();
   });
