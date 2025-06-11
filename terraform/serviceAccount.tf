@@ -6,6 +6,7 @@ module "service_account_document_management" {
   roles        = [
     "roles/cloudsql.client",
     "roles/storage.objectViewer",
-    "roles/secretmanager.secretAccessor"
+    "roles/secretmanager.secretAccessor",
+    "roles/artifactregistry.reader"
   ]
 }
