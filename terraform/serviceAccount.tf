@@ -1,4 +1,4 @@
-module "service_account_document_management" {
+module "service_account_documentmanagement-service" {
   source       = "./modules/service_account"
   account_id   = "documentmanagement-service"
   display_name = "Document Management Service Account"
