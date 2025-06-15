@@ -9,7 +9,7 @@ export interface AuthRequest extends Request {
   };
 }
 
-export const authenticateJWT = async (
+export let authenticateJWT = async (
   req: AuthRequest,
   res: Response,
   next: NextFunction,
