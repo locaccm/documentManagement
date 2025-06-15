@@ -1,4 +1,3 @@
-// src/tests/middleware/auth_test.ts
 import { Response, NextFunction } from "express";
 import axios from "axios";
 import { authenticateJWT, AuthRequest } from "../../middleware/auth";

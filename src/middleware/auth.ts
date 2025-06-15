@@ -23,7 +23,7 @@ export const authenticateJWT = async (
 
     const response = await axios.post(
       `${process.env.AUTH_SERVICE_URL}/access/check`,
-      { token, rightName: "VIEW_DOCUMENTS" },
+      { token, rightName: "getDocument" },
       { headers: { "Content-Type": "application/json" } },
     );
 
