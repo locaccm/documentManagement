@@ -6,14 +6,14 @@ import rentReceiptRouter from "./routes/postRentReceipt";
 import { setupSwagger } from "./api_documentation/swagger";
 import { authenticateJWT } from "./middleware/auth";
 
-const urlFront = process.env.URL_FRONT ?? "http://localhost:5173";
-
 const app = express();
 app.use(express.json());
 
 app.use(
   cors({
-    origin: [urlFront],
+    origin: process.env.CORS_ORIGIN ?? "*",
+    methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
+    allowedHeaders: "Content-Type,Authorization,user-id",
     credentials: true,
   }),
 );
