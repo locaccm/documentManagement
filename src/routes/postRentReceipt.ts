@@ -1,20 +1,37 @@
-import { Router, Response } from "express";
+// src/routes/rentReceiptRoutes.ts
+import { Router, Response, NextFunction } from "express";
 import { Storage } from "@google-cloud/storage";
-import { v4 as uuidv4 } from "uuid";
-import { generateRentReceiptTemplate } from "../templates/pdfTemplate";
 import { authenticateJWT, AuthRequest } from "../middleware/auth";
 import { getRentReceiptDataFromLease } from "../services/rentReceiptService";
+import { generateRentReceiptTemplate } from "../templates/pdfTemplate";
 
 const router = Router();
 const storage = new Storage();
-const bucketName = process.env.GCS_BUCKET_NAME;
+
+export interface GenerateResponse {
+  pdfUrl: string;
+}
+
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     GenerateResponse:
+ *       type: object
+ *       properties:
+ *         pdfUrl:
+ *           type: string
+ *           format: uri
+ *           description: Public URL of the generated PDF receipt; follows the pattern `https://storage.googleapis.com/{bucketName}/{userId}/{filename}.pdf`
+ *       required:
+ *         - pdfUrl
+ */
 
 /**
  * @swagger
  * /api/rent-receipt:
  *   post:
- *     summary: Create a rent receipt PDF and save it to GCP
- *     description: Generates a rent receipt PDF from a provided leaseId, retrieves data from the database, and saves it in a user subfolder in the GCP bucket.
+ *     summary: Generate a rent receipt PDF and upload it to Google Cloud Storage
  *     tags:
  *       - Documents
  *     security:
@@ -25,72 +42,79 @@ const bucketName = process.env.GCS_BUCKET_NAME;
  *         application/json:
  *           schema:
  *             type: object
+ *             required:
+ *               - leaseId
+ *               - bucketName
  *             properties:
  *               leaseId:
  *                 type: integer
- *                 example: 1
+ *                 description: ID of the lease for which to generate the receipt
+ *               bucketName:
+ *                 type: string
+ *                 description: Name of the GCS bucket where to upload the PDF
  *     responses:
  *       200:
- *         description: Rent receipt successfully generated and saved.
+ *         description: Rent receipt created successfully
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                 pdfUrl:
- *                   type: string
+ *               $ref: '#/components/schemas/GenerateResponse'
  *       400:
- *         description: Invalid data.
+ *         description: Bad request (missing or invalid leaseId or bucketName)
  *       401:
- *         description: Unauthorized.
+ *         description: Unauthorized (missing or invalid token)
  *       500:
- *         description: Internal server error.
+ *         description: Internal server error
  */
 router.post(
   "/rent-receipt",
   authenticateJWT,
-  async (req: AuthRequest, res: Response): Promise<void> => {
-    if (!bucketName) {
-      res.status(500).json({
-        message: "The environment variable GCS_BUCKET_NAME is not defined",
-      });
+  async (
+    req: AuthRequest,
+    res: Response<GenerateResponse>,
+    next: NextFunction,
+  ): Promise<void> => {
+    const { leaseId, bucketName } = req.body as {
+      leaseId?: number;
+      bucketName?: string;
+    };
+
+    if (!req.user) {
+      res.sendStatus(401);
+      return;
+    }
+    if (typeof leaseId !== "number" || !bucketName) {
+      res.sendStatus(400);
       return;
     }
 
-    try {
-      if (!req.user) {
-        res.status(401).json({ message: "Unauthorized" });
-        return;
-      }
+    const userId = req.user.userId;
+    const prefix = `${userId}/`;
+    const bucket = storage.bucket(bucketName);
 
-      const { leaseId } = req.body;
-      if (!leaseId || typeof leaseId !== "number") {
-        res
-          .status(400)
-          .json({ message: "leaseId is required and must be a number." });
-        return;
+    try {
+      const [existing] = await bucket.getFiles({ prefix, maxResults: 1 });
+      if (existing.length === 0) {
+        await bucket.file(prefix).save("", { resumable: false });
       }
 
       const receiptData = await getRentReceiptDataFromLease(leaseId);
-      const pdfBuffer = await generateRentReceiptTemplate(receiptData);
 
-      const fileName = `quittance-${uuidv4()}.pdf`;
-      const filePath = `${req.user.userId}/document/${fileName}`;
-      const file = storage.bucket(bucketName).file(filePath);
+      const pdfBuffer: Buffer = await generateRentReceiptTemplate(receiptData);
 
-      await file.save(pdfBuffer, { contentType: "application/pdf" });
-
-      const pdfUrl = `https://storage.googleapis.com/${bucketName}/${filePath}`;
-
-      res.status(200).json({
-        message: "Rent receipt successfully generated and saved",
-        pdfUrl,
+      const filenameOnly = `${Date.now()}_receipt_${leaseId}.pdf`;
+      const filePath = `${prefix}${filenameOnly}`;
+      const file = bucket.file(filePath);
+      await file.save(pdfBuffer, {
+        metadata: { contentType: "application/pdf" },
+        resumable: false,
       });
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ message: "Internal server error" });
+      await file.makePublic();
+
+      const publicUrl = `https://storage.googleapis.com/${bucketName}/${filePath}`;
+      res.status(200).json({ pdfUrl: publicUrl });
+    } catch (err) {
+      next(err);
     }
   },
 );

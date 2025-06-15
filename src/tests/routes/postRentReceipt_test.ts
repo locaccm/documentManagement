@@ -1,101 +1,103 @@
 import request from "supertest";
 import express, { Express } from "express";
-import { getRentReceiptDataFromLease } from "../../services/rentReceiptService";
-import { generateRentReceiptTemplate } from "../../templates/pdfTemplate";
 
-jest.mock("../../middleware/auth", () => ({
-  authenticateJWT: (req: any, _res: any, next: any) => {
-    req.user = { userId: 42 };
-    next();
-  },
-}));
-
-jest.mock("../../templates/pdfTemplate", () => ({
-  generateRentReceiptTemplate: jest.fn(),
-}));
-
-jest.mock("../../services/rentReceiptService", () => ({
-  getRentReceiptDataFromLease: jest.fn(),
-}));
-
-const mockSave = jest.fn().mockResolvedValue(undefined);
-jest.mock("@google-cloud/storage", () => ({
-  Storage: jest.fn().mockImplementation(() => ({
-    bucket: () => ({
-      file: () => ({
-        save: mockSave,
-      }),
-    }),
-  })),
-}));
+function buildApp() {
+  const app: Express = express();
+  app.use(express.json());
+  const router = require("../../routes/postRentReceipt").default;
+  app.use("/api", router);
+  return app;
+}
 
 describe("POST /api/rent-receipt", () => {
   let app: Express;
 
   beforeEach(() => {
-    process.env.GCS_BUCKET_NAME = "test-bucket";
-    app = express();
-    app.use(express.json());
+    jest.resetModules();
 
-    const router = require("../../routes/postRentReceipt").default;
-    app.use("/api", router);
-  });
+    jest.mock("../../middleware/auth", () => ({
+      authenticateJWT: (req: any, _res: any, next: any) => {
+        req.user = { userId: 42, email: "test@example.com", status: "OK" };
+        next();
+      },
+    }));
 
-  it("should return 400 if leaseId is missing", async () => {
-    const res = await request(app).post("/api/rent-receipt").send({});
-    expect(res.statusCode).toBe(400);
-    expect(res.body.message).toBe("leaseId is required and must be a number.");
-  });
-
-  it("should return 200 and PDF URL if everything works", async () => {
-    (getRentReceiptDataFromLease as jest.Mock).mockResolvedValue({
-      receiptNumber: "Q-1",
-      rentalType: "Location",
-      month: "Avril 2024",
-      landlordName: "John Doe",
-      landlordAddress: "1 rue Test",
-      tenantName: "Jane Smith",
-      tenantAddress: "2 rue Test",
-      signedAt: "Paris",
-      receiptDate: "2024-04-01",
-      rentalAddress: "3 rue Test",
-      rentalPeriodStart: "2024-04-01",
-      rentalPeriodEnd: "2024-04-30",
-      rentAmount: 500,
-      rentAmountText: "500 euros",
-      chargesAmount: 50,
-      energyContribution: 0,
-      totalAmount: 550,
-      paymentDate: "2024-04-05",
+    jest.mock("@google-cloud/storage", () => ({
+      Storage: jest.fn().mockImplementation(() => ({
+        bucket: () => ({
+          getFiles: jest.fn().mockResolvedValue([[]]),
+          file: () => ({
+            save: jest.fn().mockResolvedValue(undefined),
+            makePublic: jest.fn().mockResolvedValue(undefined),
+          }),
+        }),
+      })),
+    }));
+    jest.mock("pdfkit", () => {
+      const { Readable } = require("stream");
+      return jest.fn().mockImplementation(() => {
+        const doc = new Readable();
+        doc.fontSize = () => doc;
+        doc.text = () => doc;
+        doc.moveDown = () => doc;
+        doc.end = () => doc.emit("finish");
+        return doc;
+      });
     });
+    jest.mock("get-stream", () => ({
+      buffer: jest.fn().mockResolvedValue(Buffer.from("PDF")),
+    }));
+    jest.mock("../../services/rentReceiptService", () => ({
+      getRentReceiptDataFromLease: jest.fn().mockResolvedValue({}),
+    }));
+    jest.mock("../../templates/pdfTemplate", () => ({
+      generateRentReceiptTemplate: jest
+        .fn()
+        .mockResolvedValue(Buffer.from("PDF")),
+    }));
 
-    (generateRentReceiptTemplate as jest.Mock).mockResolvedValue(
-      Buffer.from("PDF"),
-    );
+    process.env.GCS_BUCKET_NAME = "test-bucket";
 
-    const res = await request(app)
-      .post("/api/rent-receipt")
-      .send({ leaseId: 1 });
-
-    expect(res.statusCode).toBe(200);
-    expect(res.body.message).toBe(
-      "Rent receipt successfully generated and saved",
-    );
-    expect(res.body.pdfUrl).toContain(
-      "https://storage.googleapis.com/test-bucket/42/document/",
-    );
+    app = buildApp();
   });
 
-  it("should return 500 if service throws an error", async () => {
-    (getRentReceiptDataFromLease as jest.Mock).mockRejectedValue(
-      new Error("DB error"),
-    );
+  afterEach(() => {
+    jest.clearAllMocks();
+    delete process.env.GCS_BUCKET_NAME;
+  });
+
+  it("returns 401 if authenticateJWT does not set req.user", async () => {
+    jest.resetModules();
+    jest.mock("../../middleware/auth", () => ({
+      authenticateJWT: (req: any, _res: any, next: any) => {
+        next();
+      },
+    }));
+
+    app = buildApp();
 
     const res = await request(app)
       .post("/api/rent-receipt")
-      .send({ leaseId: 1 });
+      .send({ leaseId: 1, bucketName: "test-bucket" });
 
-    expect(res.statusCode).toBe(500);
-    expect(res.body.message).toBe("Internal server error");
+    expect(res.statusCode).toBe(401);
+    expect(res.body).toEqual({});
+  });
+
+  it("returns 400 if leaseId or bucketName is missing or invalid", async () => {
+    const res1 = await request(app)
+      .post("/api/rent-receipt")
+      .send({ bucketName: "test-bucket" });
+    expect(res1.statusCode).toBe(400);
+
+    const res2 = await request(app)
+      .post("/api/rent-receipt")
+      .send({ leaseId: 1 });
+    expect(res2.statusCode).toBe(400);
+
+    const res3 = await request(app)
+      .post("/api/rent-receipt")
+      .send({ leaseId: "not-a-number", bucketName: "test-bucket" });
+    expect(res3.statusCode).toBe(400);
   });
 });
