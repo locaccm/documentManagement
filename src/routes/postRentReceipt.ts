@@ -79,12 +79,13 @@ router.post(
       bucketName?: string;
     };
 
-    if (!req.user) {
-      res.sendStatus(401);
-      return;
-    }
     if (typeof leaseId !== "number" || !bucketName) {
       res.sendStatus(400);
+      return;
+    }
+
+    if (!req.user) {
+      res.sendStatus(401);
       return;
     }
 

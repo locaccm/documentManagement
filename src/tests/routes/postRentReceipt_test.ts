@@ -1,52 +1,47 @@
 import request from "supertest";
 import express, { Express } from "express";
 
-function buildApp() {
-  const app: Express = express();
+function buildApp(): Express {
+  const app = express();
   app.use(express.json());
+
+  const authMod = require("../../middleware/auth");
+
+  authMod.authenticateJWT = (req: any, _res: any, next: any) => {
+    req.user = { userId: 42, email: "test@example.com", status: "OK" };
+    next();
+  };
+
   const router = require("../../routes/postRentReceipt").default;
   app.use("/api", router);
+
   return app;
 }
 
 describe("POST /api/rent-receipt", () => {
   let app: Express;
+  let mockGetFiles: jest.Mock;
+  let mockSave: jest.Mock;
+  let mockMakePublic: jest.Mock;
 
   beforeEach(() => {
     jest.resetModules();
 
-    jest.mock("../../middleware/auth", () => ({
-      authenticateJWT: (req: any, _res: any, next: any) => {
-        req.user = { userId: 42, email: "test@example.com", status: "OK" };
-        next();
-      },
-    }));
-
+    mockGetFiles = jest.fn().mockResolvedValue([[]]);
+    mockSave = jest.fn().mockResolvedValue(undefined);
+    mockMakePublic = jest.fn().mockResolvedValue(undefined);
     jest.mock("@google-cloud/storage", () => ({
       Storage: jest.fn().mockImplementation(() => ({
         bucket: () => ({
-          getFiles: jest.fn().mockResolvedValue([[]]),
+          getFiles: mockGetFiles,
           file: () => ({
-            save: jest.fn().mockResolvedValue(undefined),
-            makePublic: jest.fn().mockResolvedValue(undefined),
+            save: mockSave,
+            makePublic: mockMakePublic,
           }),
         }),
       })),
     }));
-    jest.mock("pdfkit", () => {
-      const { Readable } = require("stream");
-      return jest.fn().mockImplementation(() => {
-        const doc = new Readable();
-        doc.fontSize = () => doc;
-        doc.text = () => doc;
-        doc.moveDown = () => doc;
-        doc.end = () => doc.emit("finish");
-        return doc;
-      });
-    });
-    jest.mock("get-stream", () => ({
-      buffer: jest.fn().mockResolvedValue(Buffer.from("PDF")),
-    }));
+
     jest.mock("../../services/rentReceiptService", () => ({
       getRentReceiptDataFromLease: jest.fn().mockResolvedValue({}),
     }));
@@ -66,38 +61,78 @@ describe("POST /api/rent-receipt", () => {
     delete process.env.GCS_BUCKET_NAME;
   });
 
-  it("returns 401 if authenticateJWT does not set req.user", async () => {
-    jest.resetModules();
-    jest.mock("../../middleware/auth", () => ({
-      authenticateJWT: (req: any, _res: any, next: any) => {
-        next();
-      },
-    }));
+  it("returns 400 si leaseId ou bucketName est manquant", async () => {
+    let res = await request(app)
+      .post("/api/rent-receipt")
+      .send({ bucketName: "test-bucket" });
+    expect(res.statusCode).toBe(400);
 
-    app = buildApp();
+    res = await request(app).post("/api/rent-receipt").send({ leaseId: 1 });
+    expect(res.statusCode).toBe(400);
+
+    res = await request(app)
+      .post("/api/rent-receipt")
+      .send({ leaseId: "nope", bucketName: "test-bucket" });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("returns 200 + marker+PDF quand pas de fichiers existants", async () => {
+    mockGetFiles.mockResolvedValueOnce([[]]);
+
+    const res = await request(app)
+      .post("/api/rent-receipt")
+      .send({ leaseId: 2, bucketName: "test-bucket" });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toHaveProperty("pdfUrl");
+    expect(res.body.pdfUrl).toMatch(
+      /^https:\/\/storage\.googleapis\.com\/test-bucket\/42\/\d+_receipt_2\.pdf$/,
+    );
+    expect(mockSave).toHaveBeenCalledTimes(2);
+    expect(mockMakePublic).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns 200 + uniquement PDF quand fichiers déjà présents", async () => {
+    mockGetFiles.mockResolvedValueOnce([
+      [
+        {
+          name: "42/existing.pdf",
+          metadata: { timeCreated: "2025-01-01T00:00:00Z" },
+        },
+      ],
+    ]);
 
     const res = await request(app)
       .post("/api/rent-receipt")
       .send({ leaseId: 1, bucketName: "test-bucket" });
 
-    expect(res.statusCode).toBe(401);
-    expect(res.body).toEqual({});
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toHaveProperty("pdfUrl");
+    expect(res.body.pdfUrl).toMatch(
+      /^https:\/\/storage\.googleapis\.com\/test-bucket\/42\/\d+_receipt_1\.pdf$/,
+    );
+    expect(mockSave).toHaveBeenCalledTimes(1);
+    expect(mockMakePublic).toHaveBeenCalledTimes(1);
   });
 
-  it("returns 400 if leaseId or bucketName is missing or invalid", async () => {
-    const res1 = await request(app)
-      .post("/api/rent-receipt")
-      .send({ bucketName: "test-bucket" });
-    expect(res1.statusCode).toBe(400);
+  it("returns 500 si getFiles echoue", async () => {
+    mockGetFiles.mockRejectedValueOnce(new Error("GCS error"));
 
-    const res2 = await request(app)
+    const res = await request(app)
       .post("/api/rent-receipt")
-      .send({ leaseId: 1 });
-    expect(res2.statusCode).toBe(400);
+      .send({ leaseId: 3, bucketName: "test-bucket" });
 
-    const res3 = await request(app)
+    expect(res.statusCode).toBe(500);
+  });
+
+  it("returns 500 si save() du PDF echoue", async () => {
+    mockGetFiles.mockResolvedValueOnce([[{}]]);
+    mockSave.mockRejectedValueOnce(new Error("Upload error"));
+
+    const res = await request(app)
       .post("/api/rent-receipt")
-      .send({ leaseId: "not-a-number", bucketName: "test-bucket" });
-    expect(res3.statusCode).toBe(400);
+      .send({ leaseId: 4, bucketName: "test-bucket" });
+
+    expect(res.statusCode).toBe(500);
   });
 });
