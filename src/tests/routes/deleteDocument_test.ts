@@ -28,8 +28,6 @@ describe("DELETE /api/documents/:filename", () => {
   let app: Express;
 
   beforeEach(() => {
-    process.env.GCS_BUCKET_NAME = "test-bucket";
-
     app = express();
     app.use(express.json());
 
@@ -45,7 +43,9 @@ describe("DELETE /api/documents/:filename", () => {
     mockExists.mockResolvedValueOnce([true]);
     mockDelete.mockResolvedValueOnce(undefined);
 
-    const res = await request(app).delete("/api/documents/fichier-test.pdf");
+    const res = await request(app)
+      .delete("/api/documents/fichier-test.pdf")
+      .send({ bucketName: "test-bucket" });
 
     expect(res.statusCode).toBe(200);
     expect(res.body.message).toBe(
@@ -53,37 +53,41 @@ describe("DELETE /api/documents/:filename", () => {
     );
   });
 
-  it("should return 404 if filename is empty", async () => {
-    const res = await request(app).delete("/api/documents/%20");
+  it("should return 400 if bucketName is missing", async () => {
+    const res = await request(app)
+      .delete("/api/documents/fichier-test.pdf")
+      .send();
 
-    expect(res.statusCode).toBe(404);
-    expect(res.body.message).toBe("The file name is required");
+    expect(res.statusCode).toBe(400);
+    expect(res.body.message).toBe("Missing bucketName in body");
+  });
+
+  it("should return 400 if filename is invalid", async () => {
+    const res = await request(app)
+      .delete("/api/documents/%20")
+      .send({ bucketName: "test-bucket" });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.message).toBe("Invalid filename parameter");
   });
 
   it("should return 404 if file does not exist", async () => {
     mockExists.mockResolvedValueOnce([false]);
 
-    const res = await request(app).delete("/api/documents/fichier-test.pdf");
+    const res = await request(app)
+      .delete("/api/documents/fichier-test.pdf")
+      .send({ bucketName: "test-bucket" });
 
     expect(res.statusCode).toBe(404);
     expect(res.body.message).toBe("File not found");
   });
 
-  it("should return 500 if GCS_BUCKET_NAME is missing", async () => {
-    delete process.env.GCS_BUCKET_NAME;
-
-    const res = await request(app)
-      .delete("/api/documents/fichier-test.pdf")
-      .set("Authorization", "Bearer valid-token");
-
-    expect(res.statusCode).toBe(500);
-    expect(res.body.message).toBe("Error during file deletion");
-  });
-
   it("should return 500 if an error occurs during exists check", async () => {
     mockExists.mockRejectedValueOnce(new Error("GCS error"));
 
-    const res = await request(app).delete("/api/documents/fichier-test.pdf");
+    const res = await request(app)
+      .delete("/api/documents/fichier-test.pdf")
+      .send({ bucketName: "test-bucket" });
 
     expect(res.statusCode).toBe(500);
     expect(res.body.message).toBe("Error during file deletion");
@@ -93,23 +97,24 @@ describe("DELETE /api/documents/:filename", () => {
     mockExists.mockResolvedValueOnce([true]);
     mockDelete.mockRejectedValueOnce(new Error("Delete error"));
 
-    const res = await request(app).delete("/api/documents/fichier-test.pdf");
+    const res = await request(app)
+      .delete("/api/documents/fichier-test.pdf")
+      .send({ bucketName: "test-bucket" });
 
     expect(res.statusCode).toBe(500);
     expect(res.body.message).toBe("Error during file deletion");
   });
 
   it("should return 401 if user is not authenticated", async () => {
-    // Import the mocked authenticateJWT
     const { authenticateJWT } = require("../../middleware/auth");
-
-    // For this test only, modify the mock to simulate missing userId
     authenticateJWT.mockImplementationOnce((req: any, _res: any, next: any) => {
-      req.user = { userId: null };
+      req.user = undefined;
       next();
     });
 
-    const res = await request(app).delete("/api/documents/fichier-test.pdf");
+    const res = await request(app)
+      .delete("/api/documents/fichier-test.pdf")
+      .send({ bucketName: "test-bucket" });
 
     expect(res.statusCode).toBe(401);
     expect(res.body.message).toBe("Unauthorized");
