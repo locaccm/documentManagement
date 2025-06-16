@@ -1,12 +1,13 @@
+// src/tests/services/rentReceiptService.test.ts
 import { getRentReceiptDataFromLease } from "../../services/rentReceiptService";
 import { PrismaClient } from "@prisma/client";
 
 jest.mock("@prisma/client", () => {
-  const leaseMock = {
-    findUnique: jest.fn(),
-  };
+  const accommodationMock = { findUnique: jest.fn() };
+  const leaseMock = { findFirst: jest.fn() };
   return {
     PrismaClient: jest.fn().mockImplementation(() => ({
+      accommodation: accommodationMock,
       lease: leaseMock,
     })),
   };
@@ -15,7 +16,7 @@ jest.mock("@prisma/client", () => {
 const prisma = new PrismaClient();
 
 describe("getRentReceiptDataFromLease", () => {
-  const baseMockLease = {
+  const baseLease = {
     LEAN_ID: 1,
     LEAD_START: new Date("2024-04-01"),
     LEAD_END: new Date("2024-04-30"),
@@ -38,10 +39,17 @@ describe("getRentReceiptDataFromLease", () => {
     },
   };
 
-  it("should return a properly formatted rent receipt data object", async () => {
-    (prisma.lease.findUnique as jest.Mock).mockResolvedValue(baseMockLease);
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
 
-    const data = await getRentReceiptDataFromLease(1);
+  it("should return properly formatted data when accommodation and active lease exist", async () => {
+    (prisma.accommodation.findUnique as jest.Mock).mockResolvedValue({
+      ACCN_ID: 123,
+    });
+    (prisma.lease.findFirst as jest.Mock).mockResolvedValue(baseLease);
+
+    const data = await getRentReceiptDataFromLease(123);
 
     expect(data).toMatchObject({
       receiptNumber: "Q-1",
@@ -53,48 +61,75 @@ describe("getRentReceiptDataFromLease", () => {
       chargesAmount: 50,
       rentalAddress: "3 avenue de la Location",
     });
+    expect(prisma.accommodation.findUnique).toHaveBeenCalledWith({
+      where: { ACCN_ID: 123 },
+    });
+    expect(prisma.lease.findFirst).toHaveBeenCalledWith({
+      where: { ACCN_ID: 123, LEAB_ACTIVE: true },
+      include: { user: true, accommodation: { include: { owner: true } } },
+    });
   });
 
-  it("should throw if lease is not found", async () => {
-    (prisma.lease.findUnique as jest.Mock).mockResolvedValue(null);
+  it("should throw if accommodation not found", async () => {
+    (prisma.accommodation.findUnique as jest.Mock).mockResolvedValue(null);
 
-    await expect(getRentReceiptDataFromLease(1)).rejects.toThrow(
-      "Lease not found",
+    await expect(getRentReceiptDataFromLease(123)).rejects.toThrow(
+      "Lease not found or missing accommodation ID",
     );
   });
 
-  it("should throw if user is missing", async () => {
-    (prisma.lease.findUnique as jest.Mock).mockResolvedValue({
-      ...baseMockLease,
+  it("should throw if no active lease for this accommodation", async () => {
+    (prisma.accommodation.findUnique as jest.Mock).mockResolvedValue({
+      ACCN_ID: 123,
+    });
+    (prisma.lease.findFirst as jest.Mock).mockResolvedValue(null);
+
+    await expect(getRentReceiptDataFromLease(123)).rejects.toThrow(
+      "Active lease not found for this accommodation",
+    );
+  });
+
+  it("should throw if tenant info missing", async () => {
+    (prisma.accommodation.findUnique as jest.Mock).mockResolvedValue({
+      ACCN_ID: 123,
+    });
+    (prisma.lease.findFirst as jest.Mock).mockResolvedValue({
+      ...baseLease,
       user: null,
     });
 
-    await expect(getRentReceiptDataFromLease(1)).rejects.toThrow(
+    await expect(getRentReceiptDataFromLease(123)).rejects.toThrow(
       "Missing tenant information",
     );
   });
 
-  it("should throw if accommodation is missing", async () => {
-    (prisma.lease.findUnique as jest.Mock).mockResolvedValue({
-      ...baseMockLease,
+  it("should throw if accommodation info missing on lease", async () => {
+    (prisma.accommodation.findUnique as jest.Mock).mockResolvedValue({
+      ACCN_ID: 123,
+    });
+    (prisma.lease.findFirst as jest.Mock).mockResolvedValue({
+      ...baseLease,
       accommodation: null,
     });
 
-    await expect(getRentReceiptDataFromLease(1)).rejects.toThrow(
+    await expect(getRentReceiptDataFromLease(123)).rejects.toThrow(
       "Missing accommodation",
     );
   });
 
-  it("should throw if accommodation.owner is missing", async () => {
-    (prisma.lease.findUnique as jest.Mock).mockResolvedValue({
-      ...baseMockLease,
+  it("should throw if landlord info missing", async () => {
+    (prisma.accommodation.findUnique as jest.Mock).mockResolvedValue({
+      ACCN_ID: 123,
+    });
+    (prisma.lease.findFirst as jest.Mock).mockResolvedValue({
+      ...baseLease,
       accommodation: {
-        ...baseMockLease.accommodation,
+        ...baseLease.accommodation,
         owner: null,
       },
     });
 
-    await expect(getRentReceiptDataFromLease(1)).rejects.toThrow(
+    await expect(getRentReceiptDataFromLease(123)).rejects.toThrow(
       "Missing landlord information",
     );
   });

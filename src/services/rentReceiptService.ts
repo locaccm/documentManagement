@@ -2,9 +2,20 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-export const getRentReceiptDataFromLease = async (leaseId: number) => {
-  const lease = await prisma.lease.findUnique({
-    where: { LEAN_ID: leaseId },
+export const getRentReceiptDataFromLease = async (accnId: number) => {
+  const initialLease = await prisma.accommodation.findUnique({
+    where: { ACCN_ID: accnId },
+  });
+
+  if (!initialLease || !initialLease.ACCN_ID) {
+    throw new Error("Lease not found or missing accommodation ID");
+  }
+
+  const lease = await prisma.lease.findFirst({
+    where: {
+      ACCN_ID: initialLease.ACCN_ID,
+      LEAB_ACTIVE: true,
+    },
     include: {
       user: true,
       accommodation: {
@@ -14,7 +25,7 @@ export const getRentReceiptDataFromLease = async (leaseId: number) => {
   });
 
   if (!lease) {
-    throw new Error("Lease not found");
+    throw new Error("Active lease not found for this accommodation");
   }
 
   if (!lease.user) {
