@@ -60,37 +60,38 @@ describe("POST /api/rent-receipt", () => {
   });
 
   it("returns 400 if leaseId, bucketName or userId is missing or invalid", async () => {
-    // missing leaseId
     let res = await request(app)
       .post("/api/rent-receipt")
       .send({ bucketName: "test-bucket", userId: 42 });
     expect(res.statusCode).toBe(400);
 
-    // missing bucketName
     res = await request(app)
       .post("/api/rent-receipt")
       .send({ leaseId: 1, userId: 42 });
     expect(res.statusCode).toBe(400);
 
-    // missing userId
     res = await request(app)
       .post("/api/rent-receipt")
       .send({ leaseId: 1, bucketName: "test-bucket" });
     expect(res.statusCode).toBe(400);
 
-    // invalid leaseId type
     res = await request(app)
       .post("/api/rent-receipt")
       .send({ leaseId: "nope", bucketName: "test-bucket", userId: 42 });
     expect(res.statusCode).toBe(400);
+
+    res = await request(app)
+      .post("/api/rent-receipt")
+      .send({ leaseId: 1, bucketName: "test-bucket", userId: "NaN" });
+    expect(res.statusCode).toBe(400);
   });
 
-  it("returns 200 + marker+PDF when no existing files", async () => {
+  it("accepts userId as string and returns 200 + marker+PDF when no existing files", async () => {
     mockGetFiles.mockResolvedValueOnce([[]]);
 
     const res = await request(app)
       .post("/api/rent-receipt")
-      .send({ leaseId: 2, bucketName: "test-bucket", userId: 42 });
+      .send({ leaseId: 2, bucketName: "test-bucket", userId: "42" });
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toHaveProperty("pdfUrl");
@@ -108,7 +109,7 @@ describe("POST /api/rent-receipt", () => {
 
     const res = await request(app)
       .post("/api/rent-receipt")
-      .send({ leaseId: 1, bucketName: "test-bucket", userId: 42 });
+      .send({ leaseId: 1, bucketName: "test-bucket", userId: "42" });
 
     expect(res.statusCode).toBe(200);
     expect(res.body.pdfUrl).toMatch(
@@ -123,7 +124,7 @@ describe("POST /api/rent-receipt", () => {
 
     const res = await request(app)
       .post("/api/rent-receipt")
-      .send({ leaseId: 3, bucketName: "test-bucket", userId: 42 });
+      .send({ leaseId: 3, bucketName: "test-bucket", userId: "42" });
     expect(res.statusCode).toBe(500);
   });
 
@@ -133,7 +134,7 @@ describe("POST /api/rent-receipt", () => {
 
     const res = await request(app)
       .post("/api/rent-receipt")
-      .send({ leaseId: 4, bucketName: "test-bucket", userId: 42 });
+      .send({ leaseId: 4, bucketName: "test-bucket", userId: "42" });
     expect(res.statusCode).toBe(500);
   });
 });
