@@ -29,10 +29,14 @@ const storage = new Storage();
  *             type: object
  *             required:
  *               - bucketName
+ *               - userId
  *             properties:
  *               bucketName:
  *                 type: string
  *                 description: Name of the GCS bucket where the file lives
+ *               userId:
+ *                 type: integer
+ *                 description: ID of the user whose folder contains the file
  *     responses:
  *       200:
  *         description: File successfully deleted
@@ -44,7 +48,7 @@ const storage = new Storage();
  *                 message:
  *                   type: string
  *       400:
- *         description: Invalid request (missing bucketName or filename)
+ *         description: Invalid request (missing bucketName, userId or filename)
  *       401:
  *         description: Unauthorized
  *       404:
@@ -56,15 +60,21 @@ router.delete(
   "/documents/:filename",
   authenticateJWT,
   async (req: AuthRequest, res: Response): Promise<void> => {
-    const bucketName = req.body.bucketName;
+    const { bucketName, userId } = req.body as {
+      bucketName?: string;
+      userId?: number;
+    };
     const filename = req.params.filename;
 
     if (!req.user) {
       res.status(401).json({ message: "Unauthorized" });
       return;
     }
-    if (!bucketName || typeof bucketName !== "string") {
-      res.status(400).json({ message: "Missing bucketName in body" });
+
+    if (!bucketName || typeof userId !== "number") {
+      res
+        .status(400)
+        .json({ message: "Missing or invalid bucketName or userId" });
       return;
     }
     if (!filename || filename.trim() === "") {
@@ -72,7 +82,6 @@ router.delete(
       return;
     }
 
-    const userId = req.user.userId;
     const filePath = `${userId}/${filename}`;
     const file = storage.bucket(bucketName).file(filePath);
 
@@ -82,6 +91,7 @@ router.delete(
         res.status(404).json({ message: "File not found" });
         return;
       }
+
       await file.delete();
       res
         .status(200)
