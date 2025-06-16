@@ -45,7 +45,7 @@ describe("DELETE /api/documents/:filename", () => {
 
     const res = await request(app)
       .delete("/api/documents/fichier-test.pdf")
-      .send({ bucketName: "test-bucket" });
+      .send({ bucketName: "test-bucket", userId: 42 });
 
     expect(res.statusCode).toBe(200);
     expect(res.body.message).toBe(
@@ -53,19 +53,30 @@ describe("DELETE /api/documents/:filename", () => {
     );
   });
 
-  it("should return 400 if bucketName is missing", async () => {
-    const res = await request(app)
+  it("should return 400 if bucketName or userId is missing", async () => {
+    const res1 = await request(app)
       .delete("/api/documents/fichier-test.pdf")
       .send();
+    expect(res1.statusCode).toBe(400);
+    expect(res1.body.message).toBe("Missing or invalid bucketName or userId");
 
-    expect(res.statusCode).toBe(400);
-    expect(res.body.message).toBe("Missing bucketName in body");
+    const res2 = await request(app)
+      .delete("/api/documents/fichier-test.pdf")
+      .send({ bucketName: "test-bucket" });
+    expect(res2.statusCode).toBe(400);
+    expect(res2.body.message).toBe("Missing or invalid bucketName or userId");
+
+    const res3 = await request(app)
+      .delete("/api/documents/fichier-test.pdf")
+      .send({ userId: 42 });
+    expect(res3.statusCode).toBe(400);
+    expect(res3.body.message).toBe("Missing or invalid bucketName or userId");
   });
 
   it("should return 400 if filename is invalid", async () => {
     const res = await request(app)
       .delete("/api/documents/%20")
-      .send({ bucketName: "test-bucket" });
+      .send({ bucketName: "test-bucket", userId: 42 });
 
     expect(res.statusCode).toBe(400);
     expect(res.body.message).toBe("Invalid filename parameter");
@@ -76,7 +87,7 @@ describe("DELETE /api/documents/:filename", () => {
 
     const res = await request(app)
       .delete("/api/documents/fichier-test.pdf")
-      .send({ bucketName: "test-bucket" });
+      .send({ bucketName: "test-bucket", userId: 42 });
 
     expect(res.statusCode).toBe(404);
     expect(res.body.message).toBe("File not found");
@@ -87,7 +98,7 @@ describe("DELETE /api/documents/:filename", () => {
 
     const res = await request(app)
       .delete("/api/documents/fichier-test.pdf")
-      .send({ bucketName: "test-bucket" });
+      .send({ bucketName: "test-bucket", userId: 42 });
 
     expect(res.statusCode).toBe(500);
     expect(res.body.message).toBe("Error during file deletion");
@@ -99,7 +110,7 @@ describe("DELETE /api/documents/:filename", () => {
 
     const res = await request(app)
       .delete("/api/documents/fichier-test.pdf")
-      .send({ bucketName: "test-bucket" });
+      .send({ bucketName: "test-bucket", userId: 42 });
 
     expect(res.statusCode).toBe(500);
     expect(res.body.message).toBe("Error during file deletion");
@@ -114,7 +125,7 @@ describe("DELETE /api/documents/:filename", () => {
 
     const res = await request(app)
       .delete("/api/documents/fichier-test.pdf")
-      .send({ bucketName: "test-bucket" });
+      .send({ bucketName: "test-bucket", userId: 42 });
 
     expect(res.statusCode).toBe(401);
     expect(res.body.message).toBe("Unauthorized");

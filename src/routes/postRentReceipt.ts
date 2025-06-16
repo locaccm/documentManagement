@@ -1,4 +1,3 @@
-// src/routes/rentReceiptRoutes.ts
 import { Router, Response, NextFunction } from "express";
 import { Storage } from "@google-cloud/storage";
 import { authenticateJWT, AuthRequest } from "../middleware/auth";
@@ -11,21 +10,6 @@ const storage = new Storage();
 export interface GenerateResponse {
   pdfUrl: string;
 }
-
-/**
- * @swagger
- * components:
- *   schemas:
- *     GenerateResponse:
- *       type: object
- *       properties:
- *         pdfUrl:
- *           type: string
- *           format: uri
- *           description: Public URL of the generated PDF receipt; follows the pattern `https://storage.googleapis.com/{bucketName}/{userId}/{filename}.pdf`
- *       required:
- *         - pdfUrl
- */
 
 /**
  * @swagger
@@ -45,13 +29,14 @@ export interface GenerateResponse {
  *             required:
  *               - leaseId
  *               - bucketName
+ *               - userId
  *             properties:
  *               leaseId:
  *                 type: integer
- *                 description: ID of the lease for which to generate the receipt
  *               bucketName:
  *                 type: string
- *                 description: Name of the GCS bucket where to upload the PDF
+ *               userId:
+ *                 type: integer
  *     responses:
  *       200:
  *         description: Rent receipt created successfully
@@ -60,9 +45,9 @@ export interface GenerateResponse {
  *             schema:
  *               $ref: '#/components/schemas/GenerateResponse'
  *       400:
- *         description: Bad request (missing or invalid leaseId or bucketName)
+ *         description: Bad request (missing or invalid parameters)
  *       401:
- *         description: Unauthorized (missing or invalid token)
+ *         description: Unauthorized
  *       500:
  *         description: Internal server error
  */
@@ -74,12 +59,17 @@ router.post(
     res: Response<GenerateResponse>,
     next: NextFunction,
   ): Promise<void> => {
-    const { leaseId, bucketName } = req.body as {
+    const { leaseId, bucketName, userId } = req.body as {
       leaseId?: number;
       bucketName?: string;
+      userId?: number;
     };
 
-    if (typeof leaseId !== "number" || !bucketName) {
+    if (
+      typeof leaseId !== "number" ||
+      !bucketName ||
+      typeof userId !== "number"
+    ) {
       res.sendStatus(400);
       return;
     }
@@ -89,7 +79,6 @@ router.post(
       return;
     }
 
-    const userId = req.user.userId;
     const prefix = `${userId}/`;
     const bucket = storage.bucket(bucketName);
 
@@ -100,7 +89,6 @@ router.post(
       }
 
       const receiptData = await getRentReceiptDataFromLease(leaseId);
-
       const pdfBuffer: Buffer = await generateRentReceiptTemplate(receiptData);
 
       const filenameOnly = `${Date.now()}_receipt_${leaseId}.pdf`;
