@@ -39,13 +39,27 @@ describe("DELETE /api/documents/:filename", () => {
     jest.clearAllMocks();
   });
 
-  it("should return 200 if file is successfully deleted", async () => {
+  it("should return 200 if file is successfully deleted (userId as number)", async () => {
     mockExists.mockResolvedValueOnce([true]);
     mockDelete.mockResolvedValueOnce(undefined);
 
     const res = await request(app)
       .delete("/api/documents/fichier-test.pdf")
       .send({ bucketName: "test-bucket", userId: 42 });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.message).toBe(
+      "The file fichier-test.pdf has been deleted.",
+    );
+  });
+
+  it("should return 200 if file is successfully deleted (userId as string)", async () => {
+    mockExists.mockResolvedValueOnce([true]);
+    mockDelete.mockResolvedValueOnce(undefined);
+
+    const res = await request(app)
+      .delete("/api/documents/fichier-test.pdf")
+      .send({ bucketName: "test-bucket", userId: "42" });
 
     expect(res.statusCode).toBe(200);
     expect(res.body.message).toBe(
