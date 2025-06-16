@@ -35,8 +35,10 @@ const storage = new Storage();
  *                 type: string
  *                 description: Name of the GCS bucket where the file lives
  *               userId:
- *                 type: integer
- *                 description: ID of the user whose folder contains the file
+ *                 oneOf:
+ *                   - type: integer
+ *                   - type: string
+ *                 description: Numeric user ID or stringified number
  *     responses:
  *       200:
  *         description: File successfully deleted
@@ -60,18 +62,25 @@ router.delete(
   "/documents/:filename",
   authenticateJWT,
   async (req: AuthRequest, res: Response): Promise<void> => {
-    const { bucketName, userId } = req.body as {
+    const { bucketName, userId: rawUserId } = req.body as {
       bucketName?: string;
-      userId?: number;
+      userId?: unknown;
     };
     const filename = req.params.filename;
+
+    const userId =
+      typeof rawUserId === "string"
+        ? parseInt(rawUserId, 10)
+        : typeof rawUserId === "number"
+          ? rawUserId
+          : NaN;
 
     if (!req.user) {
       res.status(401).json({ message: "Unauthorized" });
       return;
     }
 
-    if (!bucketName || typeof userId !== "number") {
+    if (!bucketName || isNaN(userId)) {
       res
         .status(400)
         .json({ message: "Missing or invalid bucketName or userId" });
