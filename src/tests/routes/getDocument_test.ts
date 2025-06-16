@@ -20,11 +20,17 @@ jest.mock("../../middleware/auth", () => ({
 describe("GET /api/documents", () => {
   let app: Express;
 
-  beforeEach(() => {
-    app = express();
-
+  function buildApp() {
+    const a = express();
+    a.use(express.json());
     const router = require("../../routes/getDocument").default;
-    app.use("/api", router);
+    a.use("/api", router);
+    return a;
+  }
+
+  beforeEach(() => {
+    mockGetFiles.mockReset();
+    app = buildApp();
   });
 
   afterEach(() => {
@@ -45,28 +51,41 @@ describe("GET /api/documents", () => {
       ],
     ]);
 
-    const res = await request(app).get("/api/documents?bucketName=test-bucket");
+    const res = await request(app).get(
+      "/api/documents?bucketName=test-bucket&userId=42",
+    );
 
     expect(res.statusCode).toBe(200);
     expect(res.body.documents).toHaveLength(2);
-    expect(res.body.documents[0].name).toBe("quittance-123.pdf");
-    expect(res.body.documents[0].url).toBe(
-      "https://storage.googleapis.com/test-bucket/42/quittance-123.pdf",
-    );
+    expect(res.body.documents[0]).toEqual({
+      name: "quittance-123.pdf",
+      url: "https://storage.googleapis.com/test-bucket/42/quittance-123.pdf",
+      created: "2024-04-25T14:00:00Z",
+    });
   });
 
-  it("should return 400 if bucketName is missing", async () => {
-    const res = await request(app).get("/api/documents");
-
+  it("should return 400 if bucketName or userId is missing or invalid", async () => {
+    let res = await request(app).get("/api/documents?userId=42");
     expect(res.statusCode).toBe(400);
-    expect(res.body.message).toBe("Missing bucketName query parameter");
+    expect(res.body.message).toBe("Missing or invalid bucketName or userId");
+
+    res = await request(app).get("/api/documents?bucketName=test-bucket");
+    expect(res.statusCode).toBe(400);
+    expect(res.body.message).toBe("Missing or invalid bucketName or userId");
+
+    res = await request(app).get(
+      "/api/documents?bucketName=test-bucket&userId=not-a-number",
+    );
+    expect(res.statusCode).toBe(400);
+    expect(res.body.message).toBe("Missing or invalid bucketName or userId");
   });
 
   it("should return 500 if storage throws an error", async () => {
     mockGetFiles.mockRejectedValueOnce(new Error("GCS error"));
 
-    const res = await request(app).get("/api/documents?bucketName=test-bucket");
-
+    const res = await request(app).get(
+      "/api/documents?bucketName=test-bucket&userId=42",
+    );
     expect(res.statusCode).toBe(500);
     expect(res.body.message).toBe("Error retrieving documents");
   });

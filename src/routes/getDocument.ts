@@ -45,6 +45,12 @@ const storage = new Storage();
  *           type: string
  *         required: true
  *         description: Name of the GCS bucket to list
+ *       - in: query
+ *         name: userId
+ *         schema:
+ *           type: integer
+ *         required: true
+ *         description: ID of the user whose folder to list
  *     responses:
  *       200:
  *         description: List of documents found
@@ -58,7 +64,7 @@ const storage = new Storage();
  *                   items:
  *                     $ref: '#/components/schemas/DocumentInfo'
  *       400:
- *         description: Missing bucketName
+ *         description: Missing or invalid bucketName or userId
  *       401:
  *         description: Unauthorized
  *       500:
@@ -69,16 +75,20 @@ router.get(
   authenticateJWT,
   async (req: AuthRequest, res: Response): Promise<void> => {
     const bucketName = String(req.query.bucketName || "").trim();
+    const userIdRaw = req.query.userId;
+    const userId = Number(userIdRaw);
+
     if (!req.user) {
       res.status(401).json({ message: "Unauthorized" });
       return;
     }
-    if (!bucketName) {
-      res.status(400).json({ message: "Missing bucketName query parameter" });
+    if (!bucketName || !userIdRaw || isNaN(userId)) {
+      res
+        .status(400)
+        .json({ message: "Missing or invalid bucketName or userId" });
       return;
     }
 
-    const userId = req.user.userId;
     const prefix = `${userId}/`;
 
     try {

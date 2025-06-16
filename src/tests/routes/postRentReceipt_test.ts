@@ -6,7 +6,6 @@ function buildApp(): Express {
   app.use(express.json());
 
   const authMod = require("../../middleware/auth");
-
   authMod.authenticateJWT = (req: any, _res: any, next: any) => {
     req.user = { userId: 42, email: "test@example.com", status: "OK" };
     next();
@@ -52,7 +51,6 @@ describe("POST /api/rent-receipt", () => {
     }));
 
     process.env.GCS_BUCKET_NAME = "test-bucket";
-
     app = buildApp();
   });
 
@@ -61,27 +59,38 @@ describe("POST /api/rent-receipt", () => {
     delete process.env.GCS_BUCKET_NAME;
   });
 
-  it("returns 400 si leaseId ou bucketName est manquant", async () => {
+  it("returns 400 if leaseId, bucketName or userId is missing or invalid", async () => {
+    // missing leaseId
     let res = await request(app)
       .post("/api/rent-receipt")
-      .send({ bucketName: "test-bucket" });
+      .send({ bucketName: "test-bucket", userId: 42 });
     expect(res.statusCode).toBe(400);
 
-    res = await request(app).post("/api/rent-receipt").send({ leaseId: 1 });
-    expect(res.statusCode).toBe(400);
-
+    // missing bucketName
     res = await request(app)
       .post("/api/rent-receipt")
-      .send({ leaseId: "nope", bucketName: "test-bucket" });
+      .send({ leaseId: 1, userId: 42 });
+    expect(res.statusCode).toBe(400);
+
+    // missing userId
+    res = await request(app)
+      .post("/api/rent-receipt")
+      .send({ leaseId: 1, bucketName: "test-bucket" });
+    expect(res.statusCode).toBe(400);
+
+    // invalid leaseId type
+    res = await request(app)
+      .post("/api/rent-receipt")
+      .send({ leaseId: "nope", bucketName: "test-bucket", userId: 42 });
     expect(res.statusCode).toBe(400);
   });
 
-  it("returns 200 + marker+PDF quand pas de fichiers existants", async () => {
+  it("returns 200 + marker+PDF when no existing files", async () => {
     mockGetFiles.mockResolvedValueOnce([[]]);
 
     const res = await request(app)
       .post("/api/rent-receipt")
-      .send({ leaseId: 2, bucketName: "test-bucket" });
+      .send({ leaseId: 2, bucketName: "test-bucket", userId: 42 });
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toHaveProperty("pdfUrl");
@@ -92,22 +101,16 @@ describe("POST /api/rent-receipt", () => {
     expect(mockMakePublic).toHaveBeenCalledTimes(1);
   });
 
-  it("returns 200 + uniquement PDF quand fichiers déjà présents", async () => {
+  it("returns 200 + only PDF when files already exist", async () => {
     mockGetFiles.mockResolvedValueOnce([
-      [
-        {
-          name: "42/existing.pdf",
-          metadata: { timeCreated: "2025-01-01T00:00:00Z" },
-        },
-      ],
+      [{ name: "42/existing.pdf", metadata: { timeCreated: "" } }],
     ]);
 
     const res = await request(app)
       .post("/api/rent-receipt")
-      .send({ leaseId: 1, bucketName: "test-bucket" });
+      .send({ leaseId: 1, bucketName: "test-bucket", userId: 42 });
 
     expect(res.statusCode).toBe(200);
-    expect(res.body).toHaveProperty("pdfUrl");
     expect(res.body.pdfUrl).toMatch(
       /^https:\/\/storage\.googleapis\.com\/test-bucket\/42\/\d+_receipt_1\.pdf$/,
     );
@@ -115,24 +118,22 @@ describe("POST /api/rent-receipt", () => {
     expect(mockMakePublic).toHaveBeenCalledTimes(1);
   });
 
-  it("returns 500 si getFiles echoue", async () => {
+  it("returns 500 if getFiles throws", async () => {
     mockGetFiles.mockRejectedValueOnce(new Error("GCS error"));
 
     const res = await request(app)
       .post("/api/rent-receipt")
-      .send({ leaseId: 3, bucketName: "test-bucket" });
-
+      .send({ leaseId: 3, bucketName: "test-bucket", userId: 42 });
     expect(res.statusCode).toBe(500);
   });
 
-  it("returns 500 si save() du PDF echoue", async () => {
+  it("returns 500 if saving PDF throws", async () => {
     mockGetFiles.mockResolvedValueOnce([[{}]]);
     mockSave.mockRejectedValueOnce(new Error("Upload error"));
 
     const res = await request(app)
       .post("/api/rent-receipt")
-      .send({ leaseId: 4, bucketName: "test-bucket" });
-
+      .send({ leaseId: 4, bucketName: "test-bucket", userId: 42 });
     expect(res.statusCode).toBe(500);
   });
 });
