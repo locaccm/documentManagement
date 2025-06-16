@@ -1,3 +1,4 @@
+// src/routes/rentReceiptRoutes.ts
 import { Router, Response, NextFunction } from "express";
 import { Storage } from "@google-cloud/storage";
 import { authenticateJWT, AuthRequest } from "../middleware/auth";
@@ -36,7 +37,10 @@ export interface GenerateResponse {
  *               bucketName:
  *                 type: string
  *               userId:
- *                 type: integer
+ *                 oneOf:
+ *                   - type: integer
+ *                   - type: string
+ *                 description: Numeric user ID or stringified number
  *     responses:
  *       200:
  *         description: Rent receipt created successfully
@@ -59,21 +63,25 @@ router.post(
     res: Response<GenerateResponse>,
     next: NextFunction,
   ): Promise<void> => {
-    const { leaseId, bucketName, userId } = req.body as {
+    const { leaseId, bucketName } = req.body as {
       leaseId?: number;
       bucketName?: string;
-      userId?: number;
+      userId?: unknown;
     };
+    const rawUserId = req.body.userId;
+    const userId =
+      typeof rawUserId === "string"
+        ? parseInt(rawUserId, 10)
+        : typeof rawUserId === "number"
+          ? rawUserId
+          : NaN;
 
-    if (
-      typeof leaseId !== "number" ||
-      !bucketName ||
-      typeof userId !== "number"
-    ) {
+    if (typeof leaseId !== "number" || !bucketName || isNaN(userId)) {
       res.sendStatus(400);
       return;
     }
 
+    // Ensure auth middleware ran
     if (!req.user) {
       res.sendStatus(401);
       return;
