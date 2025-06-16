@@ -21,21 +21,21 @@ describe("POST /api/rent-receipt", () => {
   let app: Express;
   let mockGetFiles: jest.Mock;
   let mockSave: jest.Mock;
-  let mockMakePublic: jest.Mock;
+  let mockGetSignedUrl: jest.Mock;
 
   beforeEach(() => {
     jest.resetModules();
 
     mockGetFiles = jest.fn().mockResolvedValue([[]]);
     mockSave = jest.fn().mockResolvedValue(undefined);
-    mockMakePublic = jest.fn().mockResolvedValue(undefined);
+    mockGetSignedUrl = jest.fn().mockResolvedValue(["https://signed.url"]);
     jest.mock("@google-cloud/storage", () => ({
       Storage: jest.fn().mockImplementation(() => ({
         bucket: () => ({
           getFiles: mockGetFiles,
           file: () => ({
             save: mockSave,
-            makePublic: mockMakePublic,
+            getSignedUrl: mockGetSignedUrl,
           }),
         }),
       })),
@@ -50,13 +50,11 @@ describe("POST /api/rent-receipt", () => {
         .mockResolvedValue(Buffer.from("PDF")),
     }));
 
-    process.env.GCS_BUCKET_NAME = "test-bucket";
     app = buildApp();
   });
 
   afterEach(() => {
     jest.clearAllMocks();
-    delete process.env.GCS_BUCKET_NAME;
   });
 
   it("returns 400 if leaseId, bucketName or userId is missing or invalid", async () => {
@@ -94,12 +92,9 @@ describe("POST /api/rent-receipt", () => {
       .send({ leaseId: 2, bucketName: "test-bucket", userId: "42" });
 
     expect(res.statusCode).toBe(200);
-    expect(res.body).toHaveProperty("pdfUrl");
-    expect(res.body.pdfUrl).toMatch(
-      /^https:\/\/storage\.googleapis\.com\/test-bucket\/42\/\d+_receipt_2\.pdf$/,
-    );
+    expect(res.body).toHaveProperty("pdfUrl", "https://signed.url");
     expect(mockSave).toHaveBeenCalledTimes(2);
-    expect(mockMakePublic).toHaveBeenCalledTimes(1);
+    expect(mockGetSignedUrl).toHaveBeenCalledTimes(1);
   });
 
   it("returns 200 + only PDF when files already exist", async () => {
@@ -112,11 +107,9 @@ describe("POST /api/rent-receipt", () => {
       .send({ leaseId: 1, bucketName: "test-bucket", userId: "42" });
 
     expect(res.statusCode).toBe(200);
-    expect(res.body.pdfUrl).toMatch(
-      /^https:\/\/storage\.googleapis\.com\/test-bucket\/42\/\d+_receipt_1\.pdf$/,
-    );
+    expect(res.body.pdfUrl).toBe("https://signed.url");
     expect(mockSave).toHaveBeenCalledTimes(1);
-    expect(mockMakePublic).toHaveBeenCalledTimes(1);
+    expect(mockGetSignedUrl).toHaveBeenCalledTimes(1);
   });
 
   it("returns 500 if getFiles throws", async () => {

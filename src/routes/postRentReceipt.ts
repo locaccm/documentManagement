@@ -1,4 +1,3 @@
-// src/routes/rentReceiptRoutes.ts
 import { Router, Response, NextFunction } from "express";
 import { Storage } from "@google-cloud/storage";
 import { authenticateJWT, AuthRequest } from "../middleware/auth";
@@ -81,7 +80,6 @@ router.post(
       return;
     }
 
-    // Ensure auth middleware ran
     if (!req.user) {
       res.sendStatus(401);
       return;
@@ -106,10 +104,14 @@ router.post(
         metadata: { contentType: "application/pdf" },
         resumable: false,
       });
-      await file.makePublic();
 
-      const publicUrl = `https://storage.googleapis.com/${bucketName}/${filePath}`;
-      res.status(200).json({ pdfUrl: publicUrl });
+      const [signedUrl] = await file.getSignedUrl({
+        version: "v4",
+        action: "read",
+        expires: Date.now() + 60 * 60 * 1000,
+      });
+
+      res.status(200).json({ pdfUrl: signedUrl });
     } catch (err) {
       next(err);
     }
